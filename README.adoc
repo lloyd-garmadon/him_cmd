@@ -1,0 +1,11 @@
+= Sven Himstedt Arduino Library =
+
+This library was written just for fun
+
+== License ==
+
+Copyright (c) Sven Himstedt. All right reserved.
+
+This library is free software.
+You can redistribute it and/or modify it.
+But give credit or you are an asshole.
