@@ -28,6 +28,7 @@
 
 #define HIM_LIBRARY_COMPILE
 
+#include "him_log.h"
 #include "him_cmd.h"
 
 
@@ -35,6 +36,7 @@
 HimCommand::HimCommand()
 {
     clear_cmd_line();
+    m_echo = false;
 }
 
 HimCommand::~HimCommand()
@@ -50,6 +52,7 @@ void HimCommand::update()
 
         if ( (incomingByte > 32) && (incomingByte < 127) ) {
             // NORMAL CHARACTER
+            if(m_echo) him_logd("%c", incomingByte);
             if(m_cmd_line_char_count < HIM_CMD_LINE_MAX) {
                 m_state = HIM_CMD_STATE_READING;
                 if ( m_cmd_line_char_count == 0 || m_cmd_line[m_cmd_line_char_count - 1] == 0 ) {
@@ -67,6 +70,13 @@ void HimCommand::update()
 
         } else if ( (incomingByte == 32) || (incomingByte == 9) || (incomingByte == 13)) {
             // SPACE or TAB ot ENTER
+            if(m_echo) {
+                if(incomingByte == 13) {
+                    him_logd("\n");
+                } else {
+                    him_logd(" ");
+                }
+            }
             if ( (m_cmd_line_char_count != 0) && (m_cmd_line[m_cmd_line_char_count - 1] != 0) ) {
                 if ( m_cmd_line_char_count < HIM_CMD_LINE_MAX ) {
                     m_cmd_line[m_cmd_line_char_count] = 0;
@@ -79,6 +89,7 @@ void HimCommand::update()
 
         } else if (incomingByte == 27) {
             // ESC
+            if(m_echo) him_logd("\r");
             clear_cmd_line();
         }
 
@@ -142,7 +153,12 @@ int HimCommand::register_func(char * cmd_string, cmd_func_t cmd_func, void * p_d
     }
 }
 
-int HimCommand::getarg_count()
+void HimCommand::set_echo(bool value)
+{
+    m_echo = value;    
+}
+
+unsigned int HimCommand::getarg_count()
 {
     if ( m_state != HIM_CMD_STATE_EXECUTING) {
         return 0;
@@ -158,7 +174,7 @@ bool HimCommand::getarg_int(int index, int &value)
     } else if (index >= m_arg_count) {
         return false;
     } else {
-        return false;
+        return string2int(m_arg_value[index], value);
     }
 }
 
@@ -171,20 +187,25 @@ bool HimCommand::getarg_uint(int index, unsigned int &value)
     } else {
         m_arg_value[index];
 
-
         return false;
     }
 }
 
-bool HimCommand::getarg_char(int index, char &value)
+bool HimCommand::getarg_char(int index, char &value, unsigned int pos)
 {
     if ( m_state != HIM_CMD_STATE_EXECUTING) {
         return false;
     } else if (index >= m_arg_count) {
         return false;
     } else {
-        value = m_arg_value[index][0];
-        return true;
+        unsigned int length;
+        for (length = 0; m_arg_value[index][length]; length++);
+        if ( pos >= length ) {
+            return false;
+        } else {
+            value = m_arg_value[index][pos];
+            return true;
+        }
     }
 }
 
@@ -244,16 +265,20 @@ bool HimCommand::string2uint(char * str, unsigned int &value)
     #define string2uint_STATE_SCAN_NONE 0
     #define string2uint_STATE_SCAN_DEC  1
     #define string2uint_STATE_SCAN_HEX  2
-    #define string2uint_STATE_ERROR     0
+    #define string2uint_STATE_ERROR     3
 
     unsigned int v = 0;
     unsigned int state = string2uint_STATE_SCAN_NONE;
     for ( int i=0; str[i]; i++) {
         if ( state == string2uint_STATE_SCAN_NONE ) {
-            if ( (str[i] >= '1') && (str[i] <= '9') ) {
+            if ( (str[i] == ' ')  ||  (str[i] == '\t') ) {
+                state = string2uint_STATE_SCAN_NONE;
+            } else if ( (str[i] >= '1') && (str[i] <= '9') ) {
                 state = string2uint_STATE_SCAN_DEC;
-            } else if ( (str[i] == 'x')  &&  (str[i] == 'X')  &&  (i>0)  &&  (str[i-1] == '0')) {
+            } else if ( (str[i] == 'x')  ||  (str[i] == 'X')  &&  (i>0)  &&  (str[i-1] == '0')) {
                 state = string2uint_STATE_SCAN_HEX;
+            } else if ( str[i] == '0' ) {
+                state = string2uint_STATE_SCAN_NONE;
             } else {
                 state = string2uint_STATE_ERROR;
             }

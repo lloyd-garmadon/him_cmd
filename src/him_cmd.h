@@ -54,11 +54,13 @@ public:
 
     int register_func(char * cmd_string, cmd_func_t cmd_func, void * p_data);
 
-    int getarg_count();
+    void set_echo(bool value);
+
+    unsigned int getarg_count();
 
     bool getarg_int(int index, int &value);
     bool getarg_uint(int index, unsigned int &value);
-    bool getarg_char(int index, char &value);
+    bool getarg_char(int index, char &value, unsigned int pos);
     bool getarg_string(int index, char * value, int &length);
 
 private:
@@ -67,6 +69,7 @@ private:
     unsigned int  m_cmd_line_char_count;
 
     int   m_state;
+    bool  m_echo;
 
     char * m_arg_value[HIM_CMD_ARG_MAX];
     unsigned int m_arg_count;
@@ -90,10 +93,11 @@ extern HimCommand HimCmd;
 #define him_cmd_init(baudrate)                      Serial.begin(baudrate)
 #define him_cmd_update()                            HimCmd.update()
 #define him_cmd_register(cmd, func, data)           HimCmd.register_func(cmd, func, data)
+#define him_cmd_set_echo(value)                     HimCmd.set_echo(value)
 #define him_cmd_getarg_count()                      HimCmd.getarg_count()
 #define him_cmd_getarg_int(index, value)            HimCmd.getarg_int(index, value)
 #define him_cmd_getarg_uint(index, value)           HimCmd.getarg_uint(index, value)
-#define him_cmd_getarg_char(index, value)           HimCmd.getarg_char(index, value)
+#define him_cmd_getarg_char(index, value, pos)      HimCmd.getarg_char(index, value, pos)
 #define him_cmd_getarg_string(index, value, length) HimCmd.getarg_string(index, value, length)
 
 #ifndef him_serial_init
