@@ -28,7 +28,6 @@
 
 #define HIM_LIBRARY_COMPILE
 
-#include "him_log.h"
 #include "him_cmd.h"
 
 
@@ -68,10 +67,10 @@ void HimCommand::update()
                 m_state = HIM_CMD_STATE_ERROR;
             }
 
-        } else if ( (incomingByte == 32) || (incomingByte == 9) || (incomingByte == 13)) {
-            // SPACE or TAB ot ENTER
+        } else if ( (incomingByte == 32) || (incomingByte == 9) ||    // SPACE or TAB ot 
+                    (incomingByte == 10) || (incomingByte == 13) ) {  // ENTER
             if(m_echo) {
-                if(incomingByte == 13) {
+                if( (incomingByte == 10) || (incomingByte == 13) ) {
                     him_logd("\n");
                 } else {
                     him_logd(" ");
@@ -98,24 +97,48 @@ void HimCommand::update()
             m_cmd_line_char_count = HIM_CMD_LINE_MAX;
         }
 
-        if (incomingByte == 13) {
+        if ( (incomingByte == 10) || (incomingByte == 13) ) {
             // ENTER
             if ( (m_state = HIM_CMD_STATE_READING) && (m_arg_count > 0)) {
+                int arg_len = HIM_CMD_ARG_MAX;
+                char * arg_value = &m_arg_value[0][0];
+
+                // check for a command cookie
+                int cookie = -1;
+                bool cookie_found = arg_value[0] == '#' ? true : false;
+                for (int i=1; cookie_found && arg_value[i] && i<HIM_CMD_COOKIE_MAX; i++) {
+                    if ( i == (HIM_CMD_COOKIE_MAX - 1)  ) {
+                        if ( arg_value[i] == ':' ) {
+                            arg_value[i]  = 0;
+                            string2int(&arg_value[1], cookie);
+                            arg_len -= HIM_CMD_COOKIE_MAX;
+                            arg_value = &m_arg_value[0][HIM_CMD_COOKIE_MAX];
+                        } else {
+                            cookie_found = false;
+                        }
+                    } else if ( (arg_value[i] < '0') || (arg_value[i] > '9')) {
+                        cookie_found = false;
+                    }
+                }
+
                 // parse the command table
                 int found = -1;
                 for (int f=0; (found < 0) && (f<m_cmd_func_count); f++) {
-                    for (int c=0; c<HIM_CMD_STRING_MAX; c++) {
-                        if( m_cmd_func_table[f].cmd[c] != m_arg_value[0][c] ) {
+                    for (int i=0; ((i<arg_len) && (i<HIM_CMD_STRING_MAX)); i++ ) {
+                        if( arg_value[i] != m_cmd_func_table[f].cmd[i] ) {
                             break;
-                        } else if( m_cmd_func_table[f].cmd[c] == 0 ) {
+                        } else if( m_cmd_func_table[f].cmd[i] == 0 ) {
                             found = f;
                             break;
                         }
                     }
                 }
-                if (found >= 0) {
+                if (found < 0) {
+                    int res = 1;
+                    him_cmd_response("unknown command\n");
+                } else {
                     m_state = HIM_CMD_STATE_EXECUTING;
-                    m_cmd_func_table[found].cmd_func(m_cmd_func_table[found].p_data);
+                    m_cmd_func_table[found].cmd_func(cookie, m_cmd_func_table[found].p_data);
                 }
             }
             clear_cmd_line();
@@ -331,4 +354,6 @@ bool HimCommand::string2uint(char * str, unsigned int &value)
 }
 
 HimCommand HimCmd = HimCommand();
+int cookie = 0;
+int res = 1;
 
