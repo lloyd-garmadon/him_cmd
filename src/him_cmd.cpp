@@ -32,14 +32,159 @@
 
 
 
+bool HimCommand::version(int cookie, void * data)
+{
+    HimCommand * self = reinterpret_cast<HimCommand*>(data);
+
+    him_logd("\n");
+    if ( cookie > 0) {
+        him_logd("#%02d:%02d:", cookie, 0);
+    }
+    him_logd("%s %s\n", self->m_name, self->m_version);
+
+    return 0;
+}
+
+bool HimCommand::cmd_if(int cookie, void * data)
+{
+    HimCommand * self = reinterpret_cast<HimCommand*>(data);
+
+    int res = 0;
+
+    him_logd("\n");
+    if ( cookie > 0) {
+        him_logd("#%02d:%02d:", cookie, res);
+    }
+    him_logd("[");
+    for (int i=0; i<self->m_cmd_count; i++) {
+        if(i>0) him_logd(",");
+        him_logd("[\"%s\",\"%d\",\"%s\",\"%s\",\"%s\"]", self->m_cmd_table[i].cmd, self->m_cmd_table[i].id, self->m_cmd_table[i].params, self->m_cmd_table[i].response, self->m_cmd_table[i].descr);
+    }
+    him_logd("]\n");
+
+    return 0;
+}
+
+bool HimCommand::msg_if(int cookie, void * data)
+{
+    HimCommand * self = reinterpret_cast<HimCommand*>(data);
+
+    int res = 0;
+
+    him_logd("\n");
+    if ( cookie > 0) {
+        him_logd("#%02d:%02d:", cookie, res);
+    }
+    him_logd("[");
+    for (int i=0; i<self->m_msg_count; i++) {
+        if(i>0) him_logd(",");
+        him_logd("[\"%s\",\"%d\",\"%s\",\"%s\"]", self->m_msg_table[i].msg, self->m_msg_table[i].id, self->m_msg_table[i].response, self->m_msg_table[i].descr);
+    }
+    him_logd("]\n");
+
+    return 0;
+}
+
+
+
 HimCommand::HimCommand()
 {
     clear_cmd_line();
     m_echo = false;
+    m_cmd_count = 0;
+    m_msg_count = 0;
+    m_name = "noname";
+    m_version = "";
+    him_cmd_assign_cmd( "version", HimCommand::version, (void*)this,
+                        "",
+                        "<name> <version>",
+                        "returns the project name and version string");
+    him_cmd_assign_cmd( "cmd_if", HimCommand::cmd_if, (void*)this, 
+                        "",
+                        "[ [name,params,response,description], ... ]",
+                        "returns a list of all registered command functions");
+    him_cmd_assign_cmd( "msg_if", HimCommand::msg_if, (void*)this, 
+                        "",
+                        "[ [name,response,description], ... ]",
+                        "returns a list of all registered message functions");
 }
 
 HimCommand::~HimCommand()
 {
+}
+
+
+
+void HimCommand::set_echo(bool value)
+{
+    m_echo = value;    
+}
+
+void HimCommand::set_name(const char * name_string, const char * version_string)
+{
+    if (name_string != NULL || name_string[0] != 0 ) {
+        m_name = name_string;
+    }
+    if (version_string != NULL || version_string[0] != 0 ) {
+        m_version = version_string;
+    }
+}
+
+int HimCommand::assign_cmd(const char * cmd_string, cmd_func_t func, void * data, const char * params_string, const char * response_string, const char * description_string)
+{
+    if( m_cmd_count >= HIM_CMD_TABLE_MAX ) {
+        return 0;
+    } else if ( !cmd_string ) {
+        return 0;
+    } else if ( !cmd_string[0] ) {
+        return 0;
+    } else if ( !func ) {
+        return 0;
+    } else {
+        m_cmd_table[m_cmd_count].cmd = cmd_string;
+        m_cmd_table[m_cmd_count].id = m_cmd_count + 1;
+        m_cmd_table[m_cmd_count].func = func;
+        m_cmd_table[m_cmd_count].data = data;
+
+        m_cmd_table[m_cmd_count].params = m_cmd_table[m_cmd_count].response = m_cmd_table[m_cmd_count].descr = "";
+        if ( params_string && params_string[0] ) {
+            m_cmd_table[m_cmd_count].params = params_string;
+        }
+        if ( response_string && response_string[0] ) {
+            m_cmd_table[m_cmd_count].response = response_string;
+        }
+        if ( description_string && description_string[0] ) {
+            m_cmd_table[m_cmd_count].descr = description_string;
+        }
+
+        m_cmd_count++;
+        return m_cmd_count;
+    }
+}
+
+int HimCommand::assign_msg(const char * msg_string, const char * response_string, const char * description_string)
+{
+    if( m_msg_count >= HIM_MSG_TABLE_MAX ) {
+        return 0;
+    } else if ( !msg_string ) {
+        return 0;
+    } else if ( !msg_string[0] ) {
+        return 0;
+    } else {
+        m_msg_table[m_msg_count].msg = msg_string;
+        m_msg_table[m_msg_count].id = m_msg_count + 1;
+
+        m_msg_table[m_msg_count].response = m_msg_table[m_msg_count].descr = "";
+        if ( response_string && response_string[0] ) {
+            m_msg_table[m_msg_count].response = response_string;
+        }
+        if ( description_string && description_string[0] ) {
+            m_msg_table[m_msg_count].descr = description_string;
+        }
+
+        m_msg_count++;
+        return m_msg_count;
+    }
 }
 
 void HimCommand::update()
@@ -52,7 +197,7 @@ void HimCommand::update()
         if ( (incomingByte > 32) && (incomingByte < 127) ) {
             // NORMAL CHARACTER
             if(m_echo) him_logd("%c", incomingByte);
-            if(m_cmd_line_char_count < HIM_CMD_LINE_MAX) {
+            if(m_cmd_line_char_count < HIM_CMD_LINE_LENGTH) {
                 m_state = HIM_CMD_STATE_READING;
                 if ( m_cmd_line_char_count == 0 || m_cmd_line[m_cmd_line_char_count - 1] == 0 ) {
                     if( m_arg_count < HIM_CMD_ARG_MAX) {
@@ -69,15 +214,10 @@ void HimCommand::update()
 
         } else if ( (incomingByte == 32) || (incomingByte == 9) ||    // SPACE or TAB ot 
                     (incomingByte == 10) || (incomingByte == 13) ) {  // ENTER
-            if(m_echo) {
-                if( (incomingByte == 10) || (incomingByte == 13) ) {
-                    him_logd("\n");
-                } else {
-                    him_logd(" ");
-                }
-            }
+            if(m_echo && (incomingByte == 32) || (incomingByte ==  9)) him_logd(" ");
+            if(m_echo && (incomingByte == 10) || (incomingByte == 13)) him_logd("\n");
             if ( (m_cmd_line_char_count != 0) && (m_cmd_line[m_cmd_line_char_count - 1] != 0) ) {
-                if ( m_cmd_line_char_count < HIM_CMD_LINE_MAX ) {
+                if ( m_cmd_line_char_count < HIM_CMD_LINE_LENGTH ) {
                     m_cmd_line[m_cmd_line_char_count] = 0;
                     m_cmd_line_char_count++;
                     m_arg_count++;
@@ -92,53 +232,99 @@ void HimCommand::update()
             clear_cmd_line();
         }
 
-        if(m_cmd_line_char_count == HIM_CMD_LINE_MAX) {
-            m_cmd_line[HIM_CMD_LINE_MAX - 1] = 0;
-            m_cmd_line_char_count = HIM_CMD_LINE_MAX;
+        if(m_cmd_line_char_count >= HIM_CMD_LINE_LENGTH) {
+            m_cmd_line[HIM_CMD_LINE_LENGTH - 1] = 0;
+            m_cmd_line_char_count = HIM_CMD_LINE_LENGTH;
         }
 
         if ( (incomingByte == 10) || (incomingByte == 13) ) {
             // ENTER
             if ( (m_state = HIM_CMD_STATE_READING) && (m_arg_count > 0)) {
-                int arg_len = HIM_CMD_ARG_MAX;
-                char * arg_value = &m_arg_value[0][0];
-
-                // check for a command cookie
+                char * cmd_value = m_arg_value[0];
                 int cookie = -1;
-                bool cookie_found = arg_value[0] == '#' ? true : false;
-                for (int i=1; cookie_found && arg_value[i] && i<HIM_CMD_COOKIE_MAX; i++) {
-                    if ( i == (HIM_CMD_COOKIE_MAX - 1)  ) {
-                        if ( arg_value[i] == ':' ) {
-                            arg_value[i]  = 0;
-                            string2int(&arg_value[1], cookie);
-                            arg_len -= HIM_CMD_COOKIE_MAX;
-                            arg_value = &m_arg_value[0][HIM_CMD_COOKIE_MAX];
-                        } else {
-                            cookie_found = false;
+                int cmd_id = -1;
+
+                // check for a cookie
+                bool cookie_found = false;
+                if (cmd_value[0] == '#') {
+                    cookie_found = true;
+                    cmd_value = &cmd_value[1];
+                }
+                for (int i=0; cookie_found && cmd_value[i]; i++) {
+                    if ( (cmd_value[i] < '0') || (cmd_value[i] > '9')) {
+                        if (i > 0 && cmd_value[i] == ':' ) {
+                            cmd_value[i]  = 0;
+                            string2int(cmd_value, cookie);
+                            cmd_value = &cmd_value[i+1];
+                            break;
                         }
-                    } else if ( (arg_value[i] < '0') || (arg_value[i] > '9')) {
                         cookie_found = false;
+                        cmd_value = m_arg_value[0];
+                    }
+                }
+
+                // check for a command id
+                bool cmd_id_found = cookie_found;
+                for (int i=0; cookie_found && cmd_id_found && cmd_value[i]; i++) {
+                    if ( (cmd_value[i] < '0') || (cmd_value[i] > '9')) {
+                        if (cmd_value[i] == ':' ) {
+                            cmd_value[i]  = 0;
+                            string2int(cmd_value, cmd_id);
+                            cmd_value = &cmd_value[i+1];
+                            break;
+                        }
+                        cmd_id_found = false;
                     }
                 }
 
                 // parse the command table
                 int found = -1;
-                for (int f=0; (found < 0) && (f<m_cmd_func_count); f++) {
-                    for (int i=0; ((i<arg_len) && (i<HIM_CMD_STRING_MAX)); i++ ) {
-                        if( arg_value[i] != m_cmd_func_table[f].cmd[i] ) {
-                            break;
-                        } else if( m_cmd_func_table[f].cmd[i] == 0 ) {
+                for (int f=0; (found < 0) && (f<m_cmd_count); f++) {
+                    if (cmd_id_found && cmd_id == m_cmd_table[f].id) {
+                        found = f;
+                        break;
+                    } else {
+                        int i=0,ii=0;
+                        for (; cmd_value[i]; i++ ) {
+                            if( cmd_value[i] == m_cmd_table[f].cmd[i] ) {
+                                ii++;
+                            } else {
+                                break;
+                            }
+                        }
+                        if( i=ii && cmd_value[i] == 0 && m_cmd_table[f].cmd[i] == 0 ) {
                             found = f;
                             break;
                         }
                     }
                 }
                 if (found < 0) {
-                    int res = 1;
-                    him_cmd_response("unknown command\n");
+                    him_cmd_response_cmd(cookie, 1, "unknown command\n");
                 } else {
-                    m_state = HIM_CMD_STATE_EXECUTING;
-                    m_cmd_func_table[found].cmd_func(cookie, m_cmd_func_table[found].p_data);
+                    if ( cmd_id_found ) {
+                        if (cmd_value[0] == 0) {
+                            // assign the command name to the commandline arg 0
+                            m_arg_value[0] = m_cmd_table[found].cmd;
+                        } else {
+                            // there are still characters after the cookie/cmd header without space
+                            // this must be the first argument - move the complete arglist up
+                            m_arg_count++;
+                            if(m_arg_count >= HIM_CMD_ARG_MAX) {
+                                found = -1;
+                                m_state = HIM_CMD_STATE_ERROR;
+                            } else {
+                                for(int i=m_arg_count; i>=2; i--) {
+                                    m_arg_value[i] = m_arg_value[i-1];
+                                }
+                                m_arg_value[1] = cmd_value;
+                                m_arg_value[0] = m_cmd_table[found].cmd;
+                            }
+                        }
+                    }
+                    if (found >= 0) {
+                        m_state = HIM_CMD_STATE_EXECUTING;
+                        m_cmd_table[found].func(cookie, m_cmd_table[found].data);
+                    }
                 }
             }
             clear_cmd_line();
@@ -146,40 +332,74 @@ void HimCommand::update()
     }
 }
 
-int HimCommand::register_func(char * cmd_string, cmd_func_t cmd_func, void * p_data)
+
+
+void HimCommand::response_cmd(int cookie, int res, const char* format, ...)
 {
-    if( m_cmd_func_count >= HIM_CMD_FUNC_MAX ) {
-        return 0;
-    } else if ( !cmd_string ) {
-        return 0;
-    } else if ( !cmd_string[0] ) {
-        return 0;
-    } else if ( !cmd_func ) {
-        return 0;
-    } else {
-        bool inserted = false;
-        for ( int i=0; i<HIM_CMD_STRING_MAX; i++) {
-            m_cmd_func_table[m_cmd_func_count].cmd[i] = cmd_string[i];
-            if(m_cmd_func_table[m_cmd_func_count].cmd[i] == 0) {
-                inserted = true;
+    va_list args;
+    va_start(args, format);
+
+    HimLog.log(false, "\n"); 
+    if (cookie >= 0) { 
+        HimLog.log(false, "#%02d:%02d:", cookie, res);
+    }
+    HimLog.log(false, format, args);
+    HimLog.log(false, "\n"); 
+
+    va_end(args);
+}
+
+void HimCommand::response_msg(int msg_id, int res, bool use_tag, const char* format, ...)
+{
+    va_list args;
+    va_start(args, format);
+
+    for (int i; i<HIM_MSG_TABLE_MAX; i++) {
+        if (msg_id == m_msg_table[i].id) {
+            if (use_tag) {
+                HimLog.log(false, "\n"); 
+                HimLog.log(false, "#%02d:%02d:", m_msg_table[i].id, res);
+            } else {
+                HimLog.log(false, "%s:%02d:", m_msg_table[i].msg, res);
+            }
+            HimLog.log(false, format, args);
+            HimLog.log(false, "\n"); 
+        }
+    }
+
+    va_end(args);
+}
+
+void HimCommand::response_msg(const char * msg_string, int res, bool use_tag, const char* format, ...)
+{
+    va_list args;
+    va_start(args, format);
+
+    for (int i; i<HIM_MSG_TABLE_MAX; i++) {
+        int c=0,cc=0;
+        for (; msg_string[c]; c++ ) {
+            if( msg_string[c] == m_msg_table[i].msg[c] ) {
+                cc++;
+            } else {
                 break;
             }
         }
-        if ( inserted ) {
-            m_cmd_func_table[m_cmd_func_count].cmd_func = cmd_func;
-            m_cmd_func_table[m_cmd_func_count].p_data = p_data;
-            m_cmd_func_count++;
-            return m_cmd_func_count;
-        } else {
-            return 0;
+        if( c=cc && msg_string[c] == 0 && m_msg_table[i].msg[c] == 0 ) {
+            if (use_tag) {
+                HimLog.log(false, "\n"); 
+                HimLog.log(false, "#%02d:%02d:", m_msg_table[i].id, res);
+            } else {
+                HimLog.log(false, "%s:%02d:", m_msg_table[i].msg, res);
+            }
+            HimLog.log(false, format, args);
+            HimLog.log(false, "\n"); 
         }
     }
+
+    va_end(args);
 }
 
-void HimCommand::set_echo(bool value)
-{
-    m_echo = value;    
-}
+
 
 unsigned int HimCommand::getarg_count()
 {
@@ -239,7 +459,7 @@ bool HimCommand::getarg_string(int index, char * value, int &length)
     } else if (index >= m_arg_count) {
         return false;
     } else {
-        for ( int i=0; i<length && i<HIM_CMD_STRING_MAX; i++) {
+        for ( int i=0; i<length; i++) {
             value[i] = m_arg_value[index][i];
             if ( value[i] == 0 ) {
                 length = i;
@@ -254,7 +474,7 @@ bool HimCommand::getarg_string(int index, char * value, int &length)
 
 void HimCommand::clear_cmd_line()
 {
-    memset(m_cmd_line, 0, HIM_CMD_LINE_MAX);
+    memset(m_cmd_line, 0, HIM_CMD_LINE_LENGTH);
     m_cmd_line_char_count = 0;
 
     m_state = HIM_CMD_STATE_READY;
