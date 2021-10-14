@@ -343,7 +343,7 @@ void HimCommand::response_cmd(int cookie, int res, const char* format, ...)
     if (cookie >= 0) { 
         HimLog.log(false, "#%02d:%02d:", cookie, res);
     }
-    HimLog.log(false, format, args);
+    HimLog.logv(false, false, (const void*)format, args);
     HimLog.log(false, "\n"); 
 
     va_end(args);
@@ -362,7 +362,7 @@ void HimCommand::response_msg(int msg_id, int res, bool use_tag, const char* for
             } else {
                 HimLog.log(false, "%s:%02d:", m_msg_table[i].msg, res);
             }
-            HimLog.log(false, format, args);
+            HimLog.logv(false, false, (const void*)format, args);
             HimLog.log(false, "\n"); 
         }
     }
@@ -391,7 +391,7 @@ void HimCommand::response_msg(const char * msg_string, int res, bool use_tag, co
             } else {
                 HimLog.log(false, "%s:%02d:", m_msg_table[i].msg, res);
             }
-            HimLog.log(false, format, args);
+            HimLog.logv(false, false, (const void*)format, args);
             HimLog.log(false, "\n"); 
         }
     }
