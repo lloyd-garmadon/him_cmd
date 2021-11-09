@@ -45,45 +45,55 @@ bool HimCommand::version(int cookie, void * data)
     return 0;
 }
 
-bool HimCommand::cmd_if(int cookie, void * data)
+bool HimCommand::info(int cookie, void * data)
 {
     HimCommand * self = reinterpret_cast<HimCommand*>(data);
 
-    int res = 0;
-
     him_logd("\n");
     if ( cookie > 0) {
-        him_logd("#%02d:%02d:", cookie, res);
+        him_logd("#%02d:%02d:", cookie, 0);
     }
-    him_logd("[");
-    for (int i=0; i<self->m_cmd_count; i++) {
-        if(i>0) him_logd(",");
-        him_logd("[\"%s\",\"%d\",\"%s\",\"%s\",\"%s\"]", self->m_cmd_table[i].cmd, self->m_cmd_table[i].id, self->m_cmd_table[i].params, self->m_cmd_table[i].response, self->m_cmd_table[i].descr);
+
+    if ( self->m_arg_count == 1 ) {
+        self->dump_cmd_if();
+        self->dump_msg_if();
+    
+    } else if (self->m_arg_count == 2 ) {
+        bool found = false;
+        char cmd_string[] = "cmd";
+        char msg_string[] = "msg";
+
+        if ( !found ) {
+            found = true;
+            for(int i=0; i<4; i++) {
+                if( self->m_arg_value[1][i] != cmd_string[i] ) {
+                    found = false;
+                    break;
+                }
+            }
+            if( found ) {
+                self->dump_cmd_if();
+            }
+        }
+
+        if ( !found ) {
+            found = true;
+            for(int i=0; i<4; i++) {
+                if( self->m_arg_value[1][i] != msg_string[i] ) {
+                    found = false;
+                    break;
+                }
+            }
+            if( found ) {
+                self->dump_msg_if();
+            }
+        }
     }
-    him_logd("]\n");
 
     return 0;
 }
 
-bool HimCommand::msg_if(int cookie, void * data)
-{
-    HimCommand * self = reinterpret_cast<HimCommand*>(data);
 
-    int res = 0;
-
-    him_logd("\n");
-    if ( cookie > 0) {
-        him_logd("#%02d:%02d:", cookie, res);
-    }
-    him_logd("[");
-    for (int i=0; i<self->m_msg_count; i++) {
-        if(i>0) him_logd(",");
-        him_logd("[\"%s\",\"%d\",\"%s\",\"%s\"]", self->m_msg_table[i].msg, self->m_msg_table[i].id, self->m_msg_table[i].response, self->m_msg_table[i].descr);
-    }
-    him_logd("]\n");
-
-    return 0;
-}
 
 
 
@@ -99,14 +109,11 @@ HimCommand::HimCommand()
                         "",
                         "<name> <version>",
                         "returns the project name and version string");
-    him_cmd_assign_cmd( "cmd_if", HimCommand::cmd_if, (void*)this, 
-                        "",
-                        "[ [name,params,response,description], ... ]",
-                        "returns a list of all registered command functions");
-    him_cmd_assign_cmd( "msg_if", HimCommand::msg_if, (void*)this, 
-                        "",
-                        "[ [name,response,description], ... ]",
-                        "returns a list of all registered message functions");
+    him_cmd_assign_cmd( "info", HimCommand::info, (void*)this, 
+                        "[cmd|msg]",
+                        "cmd: [ [name,params,response,description], ... ]" "  "
+                        "msg: [ [name,response,description], ... ]",
+                        "returns a list of all registered command and/or message functions");
 }
 
 HimCommand::~HimCommand()
@@ -399,6 +406,26 @@ void HimCommand::response_msg(const char * msg_string, int res, bool use_tag, co
     va_end(args);
 }
 
+
+void HimCommand::dump_cmd_if()
+{
+    him_logd("[");
+    for (int i=0; i<m_cmd_count; i++) {
+        if(i>0) him_logd(",");
+        him_logd("[\"%s\",\"%d\",\"%s\",\"%s\",\"%s\"]", m_cmd_table[i].cmd, m_cmd_table[i].id, m_cmd_table[i].params, m_cmd_table[i].response, m_cmd_table[i].descr);
+    }
+    him_logd("]\n");
+}
+
+void HimCommand::dump_msg_if()
+{
+    him_logd("[");
+    for (int i=0; i<m_msg_count; i++) {
+        if(i>0) him_logd(",");
+        him_logd("[\"%s\",\"%d\",\"%s\",\"%s\"]", m_msg_table[i].msg, m_msg_table[i].id, m_msg_table[i].response, m_msg_table[i].descr);
+    }
+    him_logd("]\n");
+}
 
 
 unsigned int HimCommand::getarg_count()

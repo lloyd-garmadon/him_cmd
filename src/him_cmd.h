@@ -71,12 +71,15 @@ public:
     bool getarg_char(int index, char &value, unsigned int pos);
     bool getarg_string(int index, char * value, int &length);
 
+    void dump_cmd_if();
+    void dump_msg_if();
+
 public:
     static bool version(int cookie, void * data);
-    static bool cmd_if(int cookie, void * data);
-    static bool msg_if(int cookie, void * data);
+    static bool info(int cookie, void * data);
 
 private:
+
     void clear_cmd_line();
     bool string2int(char * str, int &value);
     bool string2uint(char * str, unsigned int &value);
