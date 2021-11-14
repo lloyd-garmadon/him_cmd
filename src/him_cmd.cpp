@@ -365,7 +365,7 @@ void HimCommand::response_msg(int msg_id, int res, bool use_tag, const char* for
         if (msg_id == m_msg_table[i].id) {
             if (use_tag) {
                 HimLog.log(false, "\n"); 
-                HimLog.log(false, "#%02d:%02d:", m_msg_table[i].id, res);
+                HimLog.log(false, ":%02d:%02d:", m_msg_table[i].id, res);
             } else {
                 HimLog.log(false, "%s:%02d:", m_msg_table[i].msg, res);
             }
@@ -394,7 +394,7 @@ void HimCommand::response_msg(const char * msg_string, int res, bool use_tag, co
         if( c=cc && msg_string[c] == 0 && m_msg_table[i].msg[c] == 0 ) {
             if (use_tag) {
                 HimLog.log(false, "\n"); 
-                HimLog.log(false, "#%02d:%02d:", m_msg_table[i].id, res);
+                HimLog.log(false, ":%02d:%02d:", m_msg_table[i].id, res);
             } else {
                 HimLog.log(false, "%s:%02d:", m_msg_table[i].msg, res);
             }
