@@ -20,7 +20,7 @@
 *       But give credit or you are an asshole.
 *
 * START DATE:
-*       2021/09/11
+*       2026/04/02
 *
 * CHANGES:
 *
@@ -32,88 +32,185 @@
 
 
 
-bool HimCommand::version(int cookie, void * data)
+//
+// Build-in Commands
+//
+
+int HimCommand::cmd_version(char** params, int param_count, void* data, int cookie)
 {
+    int res = HIM_CMD_OK;
+
     HimCommand * self = reinterpret_cast<HimCommand*>(data);
 
     him_logd("\n");
-    if ( cookie > 0) {
-        him_logd("#%02d:%02d:", cookie, 0);
-    }
-    him_logd("%s %s\n", self->m_name, self->m_version);
+    him_logd("$%d", res);
+    if (cookie>0) him_logd(",%d", cookie);
+    him_logd(":\"%s\"", HIM_CMD_VERSION);
+    if (self->m_project_name) him_logd(",\"%s\"", self->m_project_name);
+    if (self->m_project_name) him_logd(",\"%s\"", self->m_project_version);
+    him_logd("\n");
 
-    return 0;
+    return res;
 }
 
-bool HimCommand::info(int cookie, void * data)
+int HimCommand::cmd_info(char** params, int param_count, void* data, int cookie)
 {
+    int res = HIM_CMD_OK;
+
     HimCommand * self = reinterpret_cast<HimCommand*>(data);
 
+    bool cmd_dump = 0;
+    bool msg_dump = 0;
+    if (param_count == 0) {
+        cmd_dump = 1;
+        msg_dump = 1;
+    } else if(param_count == 1) {
+        if (!strcmp(params[0], "cmd")) {
+            cmd_dump = 1;
+        } else if (!strcmp(params[0], "msg")) {
+            msg_dump = 1;
+        }
+    }
+
     him_logd("\n");
-    if ( cookie > 0) {
-        him_logd("#%02d:%02d:", cookie, 0);
+    him_logd("$%d", res);
+    if (cookie>0) him_logd(",%d", cookie);
+    him_logd(":");
+    him_logd("[");
+    if (cmd_dump) {
+        him_logd("[");
+#if HIM_CMD_TABLE_MAX > 0
+        for(unsigned int i=0; i<self->m_cmd_count; i++) {
+            if (i>0) him_logd(",");
+            him_logd("[%s,%d,\"'%s'\",\"'%s'\",\"'%s'\"]", self->m_cmd_table[i].name, self->m_cmd_table[i].id, self->m_cmd_table[i].description_params, self->m_cmd_table[i].description_general, self->m_cmd_table[i].description_response);
+        }
+#endif
+        him_logd("]");
+    }
+    if (cmd_dump && msg_dump) him_logd(",");
+    if (msg_dump) {
+        him_logd("[");
+#if HIM_MSG_TABLE_MAX > 0
+        for(unsigned int i=0; i<self->m_msg_count; i++) {
+            if (i>0) him_logd(",");
+            him_logd("[%s,%d,\"'%s'\",\"'%s'\"]", self->m_msg_table[i].name, self->m_msg_table[i].id, self->m_msg_table[i].description_params, self->m_msg_table[i].description_general);
+        }
+#endif
+        him_logd("]");
+    }
+    him_logd("]\n");
+
+    return res;
+}
+
+
+int HimCommand::msg_info(char** params, int param_count, void* data)
+{
+    int res = HIM_CMD_OK;
+
+    HimCommand * self = reinterpret_cast<HimCommand*>(data);
+
+    bool cmd_dump = 0;
+    bool msg_dump = 0;
+    bool resp_dump = 0;
+    if (param_count == 0) {
+        cmd_dump = 1;
+        msg_dump = 1;
+    } else if(param_count == 1) {
+        if (!strcmp(params[0], "cmd")) {
+            cmd_dump = 1;
+        } else if (!strcmp(params[0], "msg")) {
+            msg_dump = 1;
+        } else if (!strcmp(params[0], "resp")) {
+            resp_dump = 1;
+        }
     }
 
-    if ( self->m_arg_count == 1 ) {
-        self->dump_cmd_if();
-        self->dump_msg_if();
-    
-    } else if (self->m_arg_count == 2 ) {
-        bool found = false;
-        char cmd_string[] = "cmd";
-        char msg_string[] = "msg";
-
-        if ( !found ) {
-            found = true;
-            for(int i=0; i<4; i++) {
-                if( self->m_arg_value[1][i] != cmd_string[i] ) {
-                    found = false;
-                    break;
-                }
-            }
-            if( found ) {
-                self->dump_cmd_if();
-            }
+    if (cmd_dump) {
+        him_logd("Command table\n");
+#if HIM_CMD_TABLE_MAX <= 0
+        him_logd("  not implemented\n");
+#else
+        for(unsigned int i=0; i<self->m_cmd_count; i++) {
+            him_logd("  %s:\n", self->m_cmd_table[i].name);
+            him_logd("    id:          %d\n", self->m_cmd_table[i].id);
+            him_logd("    params:      %s\n", self->m_cmd_table[i].description_params);
+            him_logd("    description: %s\n", self->m_cmd_table[i].description_general);
+            him_logd("    reply:       %s\n", self->m_cmd_table[i].description_response);
         }
-
-        if ( !found ) {
-            found = true;
-            for(int i=0; i<4; i++) {
-                if( self->m_arg_value[1][i] != msg_string[i] ) {
-                    found = false;
-                    break;
-                }
-            }
-            if( found ) {
-                self->dump_msg_if();
-            }
+#endif
+    }
+    if (msg_dump) {
+        him_logd("Message table\n");
+#if HIM_MSG_TABLE_MAX <= 0
+        him_logd("  not implemented\n");
+#else
+        for(unsigned int i=0; i<self->m_msg_count; i++) {
+            him_logd("  %s:\n", self->m_msg_table[i].name);
+            him_logd("    id:          %d\n", self->m_msg_table[i].id);
+            him_logd("    params:      %s\n", self->m_msg_table[i].description_params);
+            him_logd("    description: %s\n", self->m_msg_table[i].description_general);
         }
+#endif
+    }
+    if (resp_dump) {
+        him_logd("Response table\n");
+#if HIM_RESP_TABLE_MAX <= 0
+        him_logd("  not implemented\n");
+#else
+        for(unsigned int i=0; i<HIM_RESP_TABLE_MAX; i++) {
+            him_logd("  Entry %d:\n", i );
+            him_logd("    cookie:      %d\n", self->m_resp_table[i].cookie);
+            him_logd("    timestamp:   %D\n", self->m_resp_table[i].timestamp);
+        }
+#endif
     }
 
-    return 0;
+    return res;
 }
 
 
 
-
+//
+// HimCommand constructur/destructor
+//
 
 HimCommand::HimCommand()
 {
-    clear_cmd_line();
-    m_echo = false;
-    m_cmd_count = 0;
-    m_msg_count = 0;
-    m_name = "noname";
-    m_version = "";
-    him_cmd_assign_cmd( "version", HimCommand::version, (void*)this,
-                        "",
-                        "<name> <version>",
-                        "returns the project name and version string");
-    him_cmd_assign_cmd( "info", HimCommand::info, (void*)this, 
-                        "[cmd|msg]",
-                        "cmd: [ [name,params,response,description], ... ]" "  "
-                        "msg: [ [name,response,description], ... ]",
-                        "returns a list of all registered command and/or message functions");
+    m_project_name = 0;
+    m_project_version = 0;
+
+    him_cmd_assign_cmd(
+        "version",
+        HimCommand::cmd_version,
+        (void*)this,
+        "",
+        "Returns the project name and version string",
+        "<project_name>[,project_version][,interpreter_version]"
+    );
+
+    him_cmd_assign_cmd(
+        "info",
+        HimCommand::cmd_info,
+        (void*)this,
+        "<cmd|msg>",
+        "Returns a list of all registered commands/messages in JSON format",
+        "[[cmd_name,id,params,description,response],...],[[msg_name,id,params,description],...]"
+    );                        
+
+    him_cmd_assign_msg(
+        "info",
+        HimCommand::msg_info,
+        (void*)this,
+        "<cmd|msg|resp>",
+        "Dump a list of all registered commands/messages in human readable format"
+    );                        
+
+#if HIM_RESP_TABLE_MAX > 0
+    memset(&m_resp_table, 0, sizeof(struct resp_table_s) * HIM_RESP_TABLE_MAX);
+#endif
+
+    cmd_line_clear();
 }
 
 HimCommand::~HimCommand()
@@ -122,485 +219,543 @@ HimCommand::~HimCommand()
 
 
 
-void HimCommand::set_echo(bool value)
+//
+// HimCommand functions
+//
+int HimCommand::assign_cmd(const char * name, cmd_func_t func, void * data, const char * description_params, const char * description_general, const char * description_response)
 {
-    m_echo = value;    
-}
+#if HIM_CMD_TABLE_MAX <= 0
+    return HIM_CMD_ERROR_NOTIMPLEMENTED;
+#else
 
-void HimCommand::set_name(const char * name_string, const char * version_string)
-{
-    if (name_string != NULL || name_string[0] != 0 ) {
-        m_name = name_string;
-    }
-    if (version_string != NULL || version_string[0] != 0 ) {
-        m_version = version_string;
-    }
-}
+    int res = HIM_CMD_OK;
 
-int HimCommand::assign_cmd(const char * cmd_string, cmd_func_t func, void * data, const char * params_string, const char * response_string, const char * description_string)
-{
     if( m_cmd_count >= HIM_CMD_TABLE_MAX ) {
-        return 0;
-    } else if ( !cmd_string ) {
-        return 0;
-    } else if ( !cmd_string[0] ) {
-        return 0;
+        return HIM_CMD_ERROR_TABLE_FULL;
+    } else if ( !name ) {
+        return HIM_CMD_ERROR_PARAM;
+    } else if ( !name[0] ) {
+        return HIM_CMD_ERROR_PARAM;
     } else if ( !func ) {
-        return 0;
+        return HIM_CMD_ERROR_PARAM;
     } else {
-        m_cmd_table[m_cmd_count].cmd = cmd_string;
-        m_cmd_table[m_cmd_count].id = m_cmd_count + 1;
+        m_cmd_table[m_cmd_count].name = name;
+        m_cmd_table[m_cmd_count].id   = m_cmd_count + 1;
         m_cmd_table[m_cmd_count].func = func;
         m_cmd_table[m_cmd_count].data = data;
+        m_cmd_table[m_cmd_count].description_params   = "";
+        m_cmd_table[m_cmd_count].description_general  = "";
+        m_cmd_table[m_cmd_count].description_response = "";
 
-        m_cmd_table[m_cmd_count].params = m_cmd_table[m_cmd_count].response = m_cmd_table[m_cmd_count].descr = "";
-        if ( params_string && params_string[0] ) {
-            m_cmd_table[m_cmd_count].params = params_string;
+        if ( description_params && description_params[0] ) {
+            m_cmd_table[m_cmd_count].description_params = description_params;
         }
-        if ( response_string && response_string[0] ) {
-            m_cmd_table[m_cmd_count].response = response_string;
+        if ( description_general && description_general[0] ) {
+            m_cmd_table[m_cmd_count].description_general = description_general;
         }
-        if ( description_string && description_string[0] ) {
-            m_cmd_table[m_cmd_count].descr = description_string;
+        if ( description_response && description_response[0] ) {
+            m_cmd_table[m_cmd_count].description_response = description_response;
         }
 
         m_cmd_count++;
-        return m_cmd_count;
     }
+
+    return res;
+#endif
 }
 
-int HimCommand::assign_msg(const char * msg_string, const char * response_string, const char * description_string)
+int HimCommand::assign_msg(const char * name, msg_func_t func, void * data, const char * description_params, const char * description_general)
 {
-    if( m_msg_count >= HIM_MSG_TABLE_MAX ) {
-        return 0;
-    } else if ( !msg_string ) {
-        return 0;
-    } else if ( !msg_string[0] ) {
-        return 0;
-    } else {
-        m_msg_table[m_msg_count].msg = msg_string;
-        m_msg_table[m_msg_count].id = m_msg_count + 1;
+#if HIM_MSG_TABLE_MAX <= 0
+    return HIM_CMD_ERROR_NOTIMPLEMENTED;
+#else
 
-        m_msg_table[m_msg_count].response = m_msg_table[m_msg_count].descr = "";
-        if ( response_string && response_string[0] ) {
-            m_msg_table[m_msg_count].response = response_string;
+    int res = HIM_CMD_OK;
+
+    if( m_msg_count >= HIM_MSG_TABLE_MAX ) {
+        return HIM_CMD_ERROR_TABLE_FULL;
+    } else if ( !name ) {
+        return HIM_CMD_ERROR_PARAM;
+    } else if ( !name[0] ) {
+        return HIM_CMD_ERROR_PARAM;
+    } else if ( !func ) {
+        return HIM_CMD_ERROR_PARAM;
+    } else {
+        m_msg_table[m_msg_count].name = name;
+        m_msg_table[m_msg_count].id   = m_msg_count + 1;
+        m_msg_table[m_msg_count].func = func;
+        m_msg_table[m_msg_count].data = data;
+        m_msg_table[m_msg_count].description_params   = "";
+        m_msg_table[m_msg_count].description_general  = "";
+
+        if ( description_params && description_params[0] ) {
+            m_msg_table[m_msg_count].description_params = description_params;
         }
-        if ( description_string && description_string[0] ) {
-            m_msg_table[m_msg_count].descr = description_string;
+        if ( description_general && description_general[0] ) {
+            m_msg_table[m_msg_count].description_general = description_general;
         }
 
         m_msg_count++;
-        return m_msg_count;
     }
+
+    return res;
+#endif
 }
 
-void HimCommand::update()
+int HimCommand::assign_resp(int cookie, resp_func_t func, void * data)
 {
-    int incomingByte = 0;
-    
-    while(Serial.available() > 0) {
-        incomingByte = Serial.read();
+#if HIM_RESP_TABLE_MAX <= 0
+    return HIM_CMD_ERROR_NOTIMPLEMENTED;
+#else
+    int res = HIM_CMD_OK;
 
-        if ( (incomingByte > 32) && (incomingByte < 127) ) {
-            // NORMAL CHARACTER
-            if(m_echo) him_logd("%c", incomingByte);
-            if(m_cmd_line_char_count < HIM_CMD_LINE_LENGTH) {
-                m_state = HIM_CMD_STATE_READING;
-                if ( m_cmd_line_char_count == 0 || m_cmd_line[m_cmd_line_char_count - 1] == 0 ) {
-                    if( m_arg_count < HIM_CMD_ARG_MAX) {
-                        m_arg_value[m_arg_count] = &m_cmd_line[m_cmd_line_char_count];
-                    } else {
-                        m_state = HIM_CMD_STATE_ERROR;
-                    }
-                }
-                m_cmd_line[m_cmd_line_char_count] = incomingByte;
-                m_cmd_line_char_count++;
-            } else {
-                m_state = HIM_CMD_STATE_ERROR;
-            }
+    if (!func) {
+        // no need to assing ressponse function when there is no function
+        return HIM_CMD_OK;
+    }
 
-        } else if ( (incomingByte == 32) || (incomingByte == 9) ||    // SPACE or TAB ot 
-                    (incomingByte == 10) || (incomingByte == 13) ) {  // ENTER
-            if(m_echo && (incomingByte == 32) || (incomingByte ==  9)) him_logd(" ");
-            if(m_echo && (incomingByte == 10) || (incomingByte == 13)) him_logd("\n");
-            if ( (m_cmd_line_char_count != 0) && (m_cmd_line[m_cmd_line_char_count - 1] != 0) ) {
-                if ( m_cmd_line_char_count < HIM_CMD_LINE_LENGTH ) {
-                    m_cmd_line[m_cmd_line_char_count] = 0;
-                    m_cmd_line_char_count++;
-                    m_arg_count++;
-                } else {
-                    m_state = HIM_CMD_STATE_ERROR;
-                }
-            }
-
-        } else if (incomingByte == 27) {
-            // ESC
-            if(m_echo) him_logd("\r");
-            clear_cmd_line();
-        }
-
-        if(m_cmd_line_char_count >= HIM_CMD_LINE_LENGTH) {
-            m_cmd_line[HIM_CMD_LINE_LENGTH - 1] = 0;
-            m_cmd_line_char_count = HIM_CMD_LINE_LENGTH;
-        }
-
-        if ( (incomingByte == 10) || (incomingByte == 13) ) {
-            // ENTER
-            if ( (m_state = HIM_CMD_STATE_READING) && (m_arg_count > 0)) {
-                char * cmd_value = m_arg_value[0];
-                int cookie = -1;
-                int cmd_id = -1;
-
-                // check for a cookie
-                bool cookie_found = false;
-                if (cmd_value[0] == '#') {
-                    cookie_found = true;
-                    cmd_value = &cmd_value[1];
-                }
-                for (int i=0; cookie_found && cmd_value[i]; i++) {
-                    if ( (cmd_value[i] < '0') || (cmd_value[i] > '9')) {
-                        if (i > 0 && cmd_value[i] == ':' ) {
-                            cmd_value[i]  = 0;
-                            string2int(cmd_value, cookie);
-                            cmd_value = &cmd_value[i+1];
-                            break;
-                        }
-                        cookie_found = false;
-                        cmd_value = m_arg_value[0];
-                    }
-                }
-
-                // check for a command id
-                bool cmd_id_found = cookie_found;
-                for (int i=0; cookie_found && cmd_id_found && cmd_value[i]; i++) {
-                    if ( (cmd_value[i] < '0') || (cmd_value[i] > '9')) {
-                        if (cmd_value[i] == ':' ) {
-                            cmd_value[i]  = 0;
-                            string2int(cmd_value, cmd_id);
-                            cmd_value = &cmd_value[i+1];
-                            break;
-                        }
-                        cmd_id_found = false;
-                    }
-                }
-
-                // parse the command table
-                int found = -1;
-                for (int f=0; (found < 0) && (f<m_cmd_count); f++) {
-                    if (cmd_id_found && cmd_id == m_cmd_table[f].id) {
-                        found = f;
-                        break;
-                    } else {
-                        int i=0,ii=0;
-                        for (; cmd_value[i]; i++ ) {
-                            if( cmd_value[i] == m_cmd_table[f].cmd[i] ) {
-                                ii++;
-                            } else {
-                                break;
-                            }
-                        }
-                        if( i=ii && cmd_value[i] == 0 && m_cmd_table[f].cmd[i] == 0 ) {
-                            found = f;
-                            break;
-                        }
-                    }
-                }
-                if (found < 0) {
-                    him_cmd_response_cmd(cookie, 1, "unknown command\n");
-                } else {
-                    if ( cmd_id_found ) {
-                        if (cmd_value[0] == 0) {
-                            // assign the command name to the commandline arg 0
-                            m_arg_value[0] = m_cmd_table[found].cmd;
-                        } else {
-                            // there are still characters after the cookie/cmd header without space
-                            // this must be the first argument - move the complete arglist up
-                            m_arg_count++;
-                            if(m_arg_count >= HIM_CMD_ARG_MAX) {
-                                found = -1;
-                                m_state = HIM_CMD_STATE_ERROR;
-                            } else {
-                                for(int i=m_arg_count; i>=2; i--) {
-                                    m_arg_value[i] = m_arg_value[i-1];
-                                }
-                                m_arg_value[1] = cmd_value;
-                                m_arg_value[0] = m_cmd_table[found].cmd;
-                            }
-                        }
-                    }
-                    if (found >= 0) {
-                        m_state = HIM_CMD_STATE_EXECUTING;
-                        m_cmd_table[found].func(cookie, m_cmd_table[found].data);
-                    }
-                }
-            }
-            clear_cmd_line();
+    int index = -1;
+    for (int i=0; i<HIM_RESP_TABLE_MAX; i++) {
+        if (m_resp_table[i].timestamp == 0) {
+            index = i;
+            break;
         }
     }
+
+    if (index < 0) {
+        res = HIM_CMD_ERROR_TABLE_FULL;
+    } else {
+        m_resp_table[index].timestamp = millis();
+        m_resp_table[index].cookie = cookie;
+        m_resp_table[index].func = func;
+        m_resp_table[index].data = data;
+    }
+
+    return res;
+#endif
 }
 
 
 
-void HimCommand::response_cmd(int cookie, int res, const char* format, ...)
+int HimCommand::send_msg(const char * name, const char * format, ...)
 {
     va_list args;
     va_start(args, format);
 
-    HimLog.log(false, "\n"); 
-    if (cookie >= 0) { 
-        HimLog.log(false, "#%02d:%02d:", cookie, res);
-    }
+    HimLog.log(false, "\n#:%s:", name);
     HimLog.logv(false, false, (const void*)format, args);
-    HimLog.log(false, "\n"); 
+    HimLog.log(false, "\n");
 
     va_end(args);
+
+    return HIM_CMD_OK;
 }
 
-void HimCommand::response_msg(int msg_id, int res, bool use_tag, const char* format, ...)
+int HimCommand::send_msg(int id, const char * format, ...)
 {
     va_list args;
     va_start(args, format);
 
-    for (int i; i<HIM_MSG_TABLE_MAX; i++) {
-        if (msg_id == m_msg_table[i].id) {
-            if (use_tag) {
-                HimLog.log(false, "\n"); 
-                HimLog.log(false, ":%02d:%02d:", m_msg_table[i].id, res);
-            } else {
-                HimLog.log(false, "%s:%02d:", m_msg_table[i].msg, res);
-            }
-            HimLog.logv(false, false, (const void*)format, args);
-            HimLog.log(false, "\n"); 
-        }
-    }
+    HimLog.log(false, "\n#:%d:", id);
+    HimLog.logv(false, false, (const void*)format, args);
+    HimLog.log(false, "\n");
 
     va_end(args);
+
+    return HIM_CMD_OK;
 }
 
-void HimCommand::response_msg(const char * msg_string, int res, bool use_tag, const char* format, ...)
+int HimCommand::send_cmd(const char * name, resp_func_t func, void * data, const char * format, ...)
 {
+    int cookie = get_cookie();
+
+    int res = assign_resp(cookie, func, data);
+
     va_list args;
     va_start(args, format);
 
-    for (int i; i<HIM_MSG_TABLE_MAX; i++) {
-        int c=0,cc=0;
-        for (; msg_string[c]; c++ ) {
-            if( msg_string[c] == m_msg_table[i].msg[c] ) {
-                cc++;
-            } else {
-                break;
-            }
-        }
-        if( c=cc && msg_string[c] == 0 && m_msg_table[i].msg[c] == 0 ) {
-            if (use_tag) {
-                HimLog.log(false, "\n"); 
-                HimLog.log(false, ":%02d:%02d:", m_msg_table[i].id, res);
-            } else {
-                HimLog.log(false, "%s:%02d:", m_msg_table[i].msg, res);
-            }
-            HimLog.logv(false, false, (const void*)format, args);
-            HimLog.log(false, "\n"); 
-        }
-    }
+    HimLog.log(false, "\n!:%s,%d:", name, cookie);
+    HimLog.logv(false, false, (const void*)format, args);
+    HimLog.log(false, "\n");
 
     va_end(args);
-}
-
-
-void HimCommand::dump_cmd_if()
-{
-    him_logd("[");
-    for (int i=0; i<m_cmd_count; i++) {
-        if(i>0) him_logd(",");
-        him_logd("[\"%s\",\"%d\",\"%s\",\"%s\",\"%s\"]", m_cmd_table[i].cmd, m_cmd_table[i].id, m_cmd_table[i].params, m_cmd_table[i].response, m_cmd_table[i].descr);
-    }
-    him_logd("]\n");
-}
-
-void HimCommand::dump_msg_if()
-{
-    him_logd("[");
-    for (int i=0; i<m_msg_count; i++) {
-        if(i>0) him_logd(",");
-        him_logd("[\"%s\",\"%d\",\"%s\",\"%s\"]", m_msg_table[i].msg, m_msg_table[i].id, m_msg_table[i].response, m_msg_table[i].descr);
-    }
-    him_logd("]\n");
-}
-
-
-unsigned int HimCommand::getarg_count()
-{
-    if ( m_state != HIM_CMD_STATE_EXECUTING) {
-        return 0;
-    } else {
-        return m_arg_count;
-    }
-}
-
-bool HimCommand::getarg_int(int index, int &value)
-{
-    if ( m_state != HIM_CMD_STATE_EXECUTING) {
-        return false;
-    } else if (index >= m_arg_count) {
-        return false;
-    } else {
-        return string2int(m_arg_value[index], value);
-    }
-}
-
-bool HimCommand::getarg_uint(int index, unsigned int &value)
-{
-    if ( m_state != HIM_CMD_STATE_EXECUTING) {
-        return false;
-    } else if (index >= m_arg_count) {
-        return false;
-    } else {
-        m_arg_value[index];
-
-        return false;
-    }
-}
-
-bool HimCommand::getarg_char(int index, char &value, unsigned int pos)
-{
-    if ( m_state != HIM_CMD_STATE_EXECUTING) {
-        return false;
-    } else if (index >= m_arg_count) {
-        return false;
-    } else {
-        unsigned int length;
-        for (length = 0; m_arg_value[index][length]; length++);
-        if ( pos >= length ) {
-            return false;
-        } else {
-            value = m_arg_value[index][pos];
-            return true;
-        }
-    }
-}
-
-bool HimCommand::getarg_string(int index, char * value, int &length)
-{
-    if ( m_state != HIM_CMD_STATE_EXECUTING) {
-        return false;
-    } else if (index >= m_arg_count) {
-        return false;
-    } else {
-        for ( int i=0; i<length; i++) {
-            value[i] = m_arg_value[index][i];
-            if ( value[i] == 0 ) {
-                length = i;
-                return true;
-            }
-        }
-
-        value[length-1] = 0;
-        return false;
-    }
-}
-
-void HimCommand::clear_cmd_line()
-{
-    memset(m_cmd_line, 0, HIM_CMD_LINE_LENGTH);
-    m_cmd_line_char_count = 0;
-
-    m_state = HIM_CMD_STATE_READY;
-
-    memset(m_arg_value, 0, HIM_CMD_ARG_MAX * sizeof(char*));
-    m_arg_count = 0;
-}
-
-bool HimCommand::string2int(char * str, int &value)
-{
-    bool res = false;
-    unsigned int v;
-
-    if( str[0] == '-' ) {
-        res = string2uint(&str[1], v);
-        if ( res) {
-            value = -v;
-        }
-    } else {
-        res = string2uint(&str[0], v);
-        if ( res) {
-            value = v;
-        }
-    }
 
     return res;
 }
 
-bool HimCommand::string2uint(char * str, unsigned int &value)
+int HimCommand::send_cmd(int id, resp_func_t func, void * data, const char * format, ...)
 {
-    #define string2uint_STATE_SCAN_NONE 0
-    #define string2uint_STATE_SCAN_DEC  1
-    #define string2uint_STATE_SCAN_HEX  2
-    #define string2uint_STATE_ERROR     3
+    int cookie = get_cookie();
 
-    unsigned int v = 0;
-    unsigned int state = string2uint_STATE_SCAN_NONE;
-    for ( int i=0; str[i]; i++) {
-        if ( state == string2uint_STATE_SCAN_NONE ) {
-            if ( (str[i] == ' ')  ||  (str[i] == '\t') ) {
-                state = string2uint_STATE_SCAN_NONE;
-            } else if ( (str[i] >= '1') && (str[i] <= '9') ) {
-                state = string2uint_STATE_SCAN_DEC;
-            } else if ( (str[i] == 'x')  ||  (str[i] == 'X')  &&  (i>0)  &&  (str[i-1] == '0')) {
-                state = string2uint_STATE_SCAN_HEX;
-            } else if ( str[i] == '0' ) {
-                state = string2uint_STATE_SCAN_NONE;
-            } else {
-                state = string2uint_STATE_ERROR;
-            }
-        }
-        if ( state == string2uint_STATE_SCAN_DEC ) {
-            if ( (str[i] >= '0') && (str[i] <= '9') ) {
-                v *= 10;
-                v += (str[i] - '0');
-            } else {
-                state = string2uint_STATE_ERROR;
-            }
-        } else if ( state == string2uint_STATE_SCAN_HEX ) {
-            if ( (str[i] >= '0') && (str[i] <= '9') ) {
-                v *= 10; v += (str[i] - '0');
-            } else switch (str[i]) {
-                case 'a':
-                case 'A':
-                    v *= 10; v += 10;
-                    break;
-                case 'b':
-                case 'B':
-                    v *= 10; v += 11;
-                    break;
-                case 'c':
-                case 'C':
-                    v *= 10; v += 12;
-                    break;
-                case 'd':
-                case 'D':
-                    v *= 10; v += 13;
-                    break;
-                case 'e':
-                case 'E':
-                    v *= 10; v += 14;
-                    break;
-                case 'f':
-                case 'F':
-                    v *= 10; v += 15;
-                    break;
-                default:
-                    state = string2uint_STATE_ERROR;
-            }
-        } else if ( state == string2uint_STATE_ERROR ) {
-            value = 0;
-            return false;
-        }
-    }
-    value = v;
-    return true;
+    int res = assign_resp(cookie, func, data);
+
+    va_list args;
+    va_start(args, format);
+
+    HimLog.log(false, "\n!:%d,%d:", id, cookie);
+    HimLog.logv(false, false, (const void*)format, args);
+    HimLog.log(false, "\n");
+
+    va_end(args);
+
+    return HIM_CMD_OK;
+
+    return res;
 }
 
-HimCommand HimCmd = HimCommand();
-int cookie = 0;
-int res = 1;
 
+
+#define HIM_CMD_LINE_STATE_PARSE_START   0
+#define HIM_CMD_LINE_STATE_PARSE_COOKIE  1
+#define HIM_CMD_LINE_STATE_PARSE_ID      2
+#define HIM_CMD_LINE_STATE_PARSE_ARGS    3
+#define HIM_CMD_LINE_STATE_IGNORE       -1
+#define HIM_CMD_LINE_STATE_ERROR        -2
+#define HIM_CMD_LINE_STATE_OVERFLOW     -3
+
+void HimCommand::cmd_line_init(int baudrate, bool echo, const char * project_name, const char * project_version, long timeout)
+{
+
+    if (project_name != NULL || project_name[0] != 0 ) {
+        m_project_name = project_name;
+    }
+
+    if (project_version != NULL || project_version[0] != 0 ) {
+        m_project_version = project_version;
+    }
+
+    m_interpreter.echo = echo;
+
+    m_interpreter.resp_timeout = timeout;
+
+    Serial.begin(baudrate);
+
+    cmd_line_clear();
+}
+
+void HimCommand::cmd_line_clear()
+{
+    memset(m_interpreter.char_line, 0, sizeof(char) * HIM_CMD_LINE_LENGTH);
+    m_interpreter.char_count = 0;
+
+    m_interpreter.arg.name = 0;
+    m_interpreter.arg.id = 0;
+    m_interpreter.arg.cookie = 0;
+    memset(m_interpreter.arg.param, 0, sizeof(char*) * HIM_CMD_LINE_PARAM_MAX);
+    m_interpreter.arg.param_count = 0;
+
+    m_interpreter.state = HIM_CMD_LINE_STATE_PARSE_START;
+
+    if (m_interpreter.echo) {
+        him_logd("> ");
+    }   
+}
+
+void HimCommand::cmd_line_parse()
+{
+    int received_char = 0;
+    
+    while(Serial.available() > 0) {
+        received_char = Serial.read();
+
+        if (received_char == 27) {       
+            // received ESC
+            if (m_interpreter.echo) {
+                him_logd("\n");
+            }   
+            cmd_line_clear();
+
+        } else if ( (received_char == 10) || (received_char == 13) ) {   
+            // received ENTER
+            if (m_interpreter.echo) {
+                him_logd("\n");
+            }   
+            if (m_interpreter.state == HIM_CMD_LINE_STATE_IGNORE) {
+                him_logd_error("no format recognized - ignore\n");
+            } else if (m_interpreter.state == HIM_CMD_LINE_STATE_ERROR) {
+                him_logd_error("malformed format - ignore\n");
+            } else if (m_interpreter.state == HIM_CMD_LINE_STATE_OVERFLOW) {
+                him_logd_error("commandline buffer full - ignored\n");
+            } else if (((m_interpreter.state == HIM_CMD_LINE_STATE_PARSE_ARGS)) ||
+                ((m_interpreter.state == HIM_CMD_LINE_STATE_PARSE_ID) && (m_interpreter.arg.name || m_interpreter.arg.id)) ||
+                ((m_interpreter.state == HIM_CMD_LINE_STATE_PARSE_COOKIE) && (m_interpreter.arg.name || m_interpreter.arg.id))
+               ) {
+                if (m_interpreter.state == HIM_CMD_LINE_STATE_PARSE_ARGS) {
+                    // when parsing the args, check if the last arg already has content
+                    char p = *m_interpreter.arg.param[m_interpreter.arg.param_count];
+                    if (p) {
+                        // add a zero at the end to be safe
+                        m_interpreter.char_line[m_interpreter.char_count++] = 0;
+                        // increment the param count
+                        m_interpreter.arg.param_count++;
+                    }
+                }
+                int res = cmd_line_exec(
+                            m_interpreter.arg.type,
+                            m_interpreter.arg.name,
+                            m_interpreter.arg.id,
+                            m_interpreter.arg.cookie,
+                            m_interpreter.arg.param,
+                            m_interpreter.arg.param_count);
+                if (res && m_interpreter.echo) {
+                    him_logd_error("execution failed - %d\n", res);
+                }   
+            }
+            cmd_line_clear();
+
+        } else if ((received_char == 9) || (received_char == 32) || ((received_char > 32) && (received_char < 127))) { 
+            // received TAB, SPACE or REGULAR CHARACTER
+            if (m_interpreter.echo) {
+                him_logd("%c", received_char);
+            }   
+
+            if ( m_interpreter.state == HIM_CMD_LINE_STATE_PARSE_START) {
+                if ( (received_char == 9) || (received_char == 32) ) { 
+                    // ignore whitespace
+                } else if ( received_char == HIM_CMD_TYPE_CMD) { 
+                    m_interpreter.arg.type = HIM_CMD_TYPE_CMD; 
+                    m_interpreter.state = HIM_CMD_LINE_STATE_PARSE_ID;
+                } else if ( received_char == HIM_CMD_TYPE_RESP) { 
+                    m_interpreter.arg.type = HIM_CMD_TYPE_RESP; 
+                    m_interpreter.state = HIM_CMD_LINE_STATE_PARSE_ID;
+                } else if ( received_char == HIM_CMD_TYPE_MSG) { 
+                    m_interpreter.arg.type = HIM_CMD_TYPE_MSG; 
+                    m_interpreter.state = HIM_CMD_LINE_STATE_PARSE_ID;
+                } else {
+                    m_interpreter.state = HIM_CMD_LINE_STATE_IGNORE; 
+                }
+
+            } else if ( m_interpreter.state == HIM_CMD_LINE_STATE_PARSE_ID) {
+                if ((received_char == 9) || (received_char == 32)) { 
+                    // ignore whitespace
+                } else if ((received_char == ':') || (received_char == ',')) { 
+                    if (m_interpreter.arg.name) { 
+                        m_interpreter.char_line[m_interpreter.char_count++] = 0;
+                        m_interpreter.state = (received_char == ',') ? HIM_CMD_LINE_STATE_PARSE_COOKIE : HIM_CMD_LINE_STATE_PARSE_ARGS;
+                    } else if (m_interpreter.arg.id) { 
+                        m_interpreter.state = (received_char == ',') ? HIM_CMD_LINE_STATE_PARSE_COOKIE : HIM_CMD_LINE_STATE_PARSE_ARGS;
+                    } else {
+                        m_interpreter.state = HIM_CMD_LINE_STATE_ERROR; 
+                    }
+                } else if ((m_interpreter.arg.type != HIM_CMD_TYPE_RESP)  && (received_char >= '0') && (received_char <= '9')) { 
+                    if (!m_interpreter.arg.name) { 
+                        m_interpreter.arg.id *= 10;
+                        m_interpreter.arg.id += (received_char - '0');
+                    } else {
+                        m_interpreter.char_line[m_interpreter.char_count++] = received_char;
+                    }
+                } else {
+                    if (m_interpreter.arg.id) {
+                        m_interpreter.state = HIM_CMD_LINE_STATE_ERROR; 
+                    } else {
+                        if (!m_interpreter.arg.name) { 
+                            m_interpreter.arg.name = &m_interpreter.char_line[m_interpreter.char_count];
+                        }
+                        m_interpreter.char_line[m_interpreter.char_count++] = received_char;
+                    }
+                }
+
+            } else if ( m_interpreter.state == HIM_CMD_LINE_STATE_PARSE_COOKIE) {
+                if ( (received_char == 9) || (received_char == 32) ) { 
+                    // ignore whitespace
+                } else if (received_char == ':') { 
+                    m_interpreter.state = HIM_CMD_LINE_STATE_PARSE_ARGS;
+                } else if ((received_char >= '0') && (received_char <= '9')) { 
+                    m_interpreter.arg.cookie *= 10;
+                    m_interpreter.arg.cookie += (received_char - '0');
+                } else {
+                    m_interpreter.state = HIM_CMD_LINE_STATE_ERROR; 
+                }
+
+            } else if ( m_interpreter.state == HIM_CMD_LINE_STATE_PARSE_ARGS) {
+                if (m_interpreter.arg.param[m_interpreter.arg.param_count] == 0) {
+                    m_interpreter.arg.param[m_interpreter.arg.param_count] = &m_interpreter.char_line[m_interpreter.char_count];
+                };
+
+                if (m_interpreter.flag_inquotes) {
+                    if (received_char == 32) { 
+                        m_interpreter.flag_inquotes = false;
+                    } else {
+                        m_interpreter.char_line[m_interpreter.char_count++] = received_char;
+                    }
+                } else {
+                    if ((received_char == 9) || (received_char == 32)) { 
+                        // ignore whitespace
+                    } else if (received_char == 32) { 
+                        m_interpreter.flag_inquotes = true;
+                    } else if (received_char == ',') { 
+                        m_interpreter.char_line[m_interpreter.char_count++] = 0;
+                        m_interpreter.arg.param_count++;
+                    } else {
+                        m_interpreter.char_line[m_interpreter.char_count++] = received_char;
+                    }
+                }
+            }
+        }
+
+        // finally some checks for the next round
+        if (m_interpreter.arg.param_count >= HIM_CMD_LINE_PARAM_MAX) {
+            m_interpreter.state = HIM_CMD_LINE_STATE_OVERFLOW;  
+        }
+        if (m_interpreter.char_count >= HIM_CMD_LINE_LENGTH) {
+            m_interpreter.state = HIM_CMD_LINE_STATE_OVERFLOW; 
+        }
+    }
+
+    // clean up the response table when timeout was set
+#if HIM_RESP_TABLE_MAX > 0
+    if (m_interpreter.resp_timeout > 0) {
+        long time = millis();
+        for (int i=0; i<HIM_RESP_TABLE_MAX; i++) {
+            if (m_resp_table[i].timestamp && ((time - m_resp_table[i].timestamp) > m_interpreter.resp_timeout)) {
+                m_resp_table[i].timestamp = 0;
+                m_resp_table[i].cookie = 0;
+                m_resp_table[i].func = 0;
+                m_resp_table[i].data = 0;
+            }
+        }
+    }
+#endif
+}
+
+int HimCommand::cmd_line_exec(char type, char * name, int id, int cookie, char** params, int param_count)
+{
+    if(type == HIM_CMD_TYPE_MSG) {
+        return cmd_line_exec_msg(name, id, params, param_count);
+    } else if(type == HIM_CMD_TYPE_CMD) {
+        return cmd_line_exec_cmd(name, id, params, param_count, cookie);
+    } else if(type == HIM_CMD_TYPE_RESP) {
+        // the name represents the errorcode in this case
+        return cmd_line_exec_resp(cookie, name, params, param_count);
+    } else {
+        return HIM_CMD_ERROR_TYPE;
+    }
+}
+
+int HimCommand::cmd_line_exec_msg(char * name, int id, char** params, int param_count)
+{
+#if HIM_MSG_TABLE_MAX <= 0
+    return HIM_CMD_ERROR_NOTIMPLEMENTED;
+#else
+
+    int res = HIM_CMD_OK;
+
+    int index = -1;
+    if (name && name[0]) {
+        for (unsigned int i=0; i<m_msg_count; i++) {
+            if (!strcmp(name, m_msg_table[i].name)) {
+                index = i;
+                break;
+            }
+        }
+    } else if (id > 0) {
+        for (unsigned int i=0; i<m_msg_count; i++) {
+            if (id == m_msg_table[i].id) {
+                index = i;
+                break;
+            }
+        }
+    }
+    
+    if (index < 0) {
+        res = HIM_CMD_ERROR_MSG;
+    } else {
+        res = m_msg_table[index].func(params, param_count, m_msg_table[index].data);
+    }
+
+    return res;
+#endif
+}
+
+int HimCommand::cmd_line_exec_cmd(char * name, int id, char** params, int param_count, int cookie)
+{
+#if HIM_CMD_TABLE_MAX <= 0
+    return HIM_CMD_ERROR_NOTIMPLEMENTED;
+#else
+
+    int res = HIM_CMD_OK;
+
+    int index = -1;
+    if (name && name[0]) {
+        for (unsigned int i=0; i<m_cmd_count; i++) {
+            if (!strcmp(name, m_cmd_table[i].name)) {
+                index = i;
+                break;
+            }
+        }
+    } else if (id > 0) {
+        for (unsigned int i=0; i<m_cmd_count; i++) {
+            if (id == m_cmd_table[i].id) {
+                index = i;
+                break;
+            }
+        }
+    }
+    
+    if (index < 0) {
+        res = HIM_CMD_ERROR_CMD;
+    } else {
+        res = m_cmd_table[index].func(params, param_count, m_cmd_table[index].data, cookie);
+    }
+
+    return res;
+#endif
+}
+
+int HimCommand::cmd_line_exec_resp(int cookie, char * error, char** params, int param_count)
+{
+#if HIM_RESP_TABLE_MAX <= 0
+    return HIM_CMD_ERROR_NOTIMPLEMENTED;
+#else
+
+    int res = HIM_CMD_OK;
+
+    char *errorend;
+    int errorcode = strtol(error, &errorend, 10);
+
+    if (*errorend) {
+        res = HIM_CMD_ERROR_PARAM;
+        errorcode = -1;
+    }
+
+    int index = -1;
+    for (int i=0; i<HIM_RESP_TABLE_MAX; i++) {
+        if (m_resp_table[i].timestamp && (m_resp_table[i].cookie == cookie)){
+            index = i;
+            break;
+        }
+    }
+
+    if (index < 0) {
+        res = HIM_CMD_ERROR_RESP;
+    } else {
+        // execute the respond function
+        if(m_resp_table[index].func) {
+            res = m_resp_table[index].func(cookie, errorcode, params, param_count, m_resp_table[index].data);
+        }
+        m_resp_table[index].timestamp = 0;
+        m_resp_table[index].cookie = 0;
+        m_resp_table[index].func = 0;
+        m_resp_table[index].data = 0;
+    }
+
+    return res;
+#endif 
+}
+
+int HimCommand::get_cookie()
+{
+    static int cookie = 0;
+
+    if (++cookie > 999) cookie = 1;
+
+    return cookie;
+}
+
+
+
+//
+// global static HimCommand instance
+//
+
+HimCommand HimCmd = HimCommand();

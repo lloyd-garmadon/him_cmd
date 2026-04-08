@@ -20,7 +20,7 @@
 *       But give credit or you are an asshole.
 *
 * START DATE:
-*       2021/09/11
+*       2026/04/02
 *
 * CHANGES:
 *
@@ -34,18 +34,27 @@
 
 #include "him_log.h"
 
-#define HIM_CMD_LINE_LENGTH     32          // max command line length
+#include "him_cmd_config.h"
 
-#define HIM_CMD_ARG_MAX          8          // max number of arguments in commandline 
-#define HIM_CMD_TABLE_MAX        8
-#define HIM_MSG_TABLE_MAX        8
+#define HIM_CMD_VERSION         "1.1.0"
 
-#define HIM_CMD_STATE_READY      0
-#define HIM_CMD_STATE_READING    1
-#define HIM_CMD_STATE_EXECUTING  2
-#define HIM_CMD_STATE_ERROR     -1
+#define HIM_CMD_TYPE_NONE        '-'
+#define HIM_CMD_TYPE_CMD         '!'
+#define HIM_CMD_TYPE_RESP        '$'
+#define HIM_CMD_TYPE_MSG         '#'
 
-typedef bool (*cmd_func_t)(int, void*);
+#define HIM_CMD_OK               0
+#define HIM_CMD_ERROR_TYPE       1
+#define HIM_CMD_ERROR_MSG        2
+#define HIM_CMD_ERROR_CMD        3
+#define HIM_CMD_ERROR_RESP       4
+#define HIM_CMD_ERROR_PARAM      5
+#define HIM_CMD_ERROR_TABLE_FULL 6
+#define HIM_CMD_ERROR_NOTIMPLEMENTED 7
+
+typedef int (*cmd_func_t)(char**, int, void*, int);
+typedef int (*msg_func_t)(char**, int, void*);
+typedef int (*resp_func_t)(int, int, char**, int, void*);
 
 class HimCommand
 {
@@ -53,104 +62,131 @@ public:
     HimCommand();
     ~HimCommand();
 
-    void set_name(const char * name_string, const char * version_string);
-    void set_echo(bool value);
+    int assign_cmd(
+        const char * name,
+        cmd_func_t func,
+        void * data, 
+        const char * description_params,
+        const char * description_general,
+        const char * description_response
+    );
 
-    int  assign_cmd(const char * cmd_string, cmd_func_t func, void * data, const char * params_string, const char * response_string, const char * description_string);
-    int  assign_msg(const char * msg_string, const char * response_string, const char * description_string);
+    int assign_msg(
+        const char * name,
+        msg_func_t func,
+        void * data, 
+        const char * description_params,
+        const char * description_general
+    );
 
-    void update();
+    int assign_resp(
+        int cookie,
+        resp_func_t func,
+        void * data
+    );
 
-    void response_cmd(int cookie, int res, const char* format, ...);
-    void response_msg(int msg_id, int res, bool use_tag, const char* format, ...);
-    void response_msg(const char * msg_string, int res, bool use_tag, const char* format, ...);
+    int send_msg(const char * name, const char * format, ... );
+    int send_msg(int id, const char * format, ... );
 
-    unsigned int getarg_count();
-    bool getarg_int(int index, int &value);
-    bool getarg_uint(int index, unsigned int &value);
-    bool getarg_char(int index, char &value, unsigned int pos);
-    bool getarg_string(int index, char * value, int &length);
+    int send_cmd(const char * name, resp_func_t func, void * data, const char * format, ... );
+    int send_cmd(int id, resp_func_t func, void * data, const char * format, ... );
 
-    void dump_cmd_if();
-    void dump_msg_if();
+    void cmd_line_init(int baudrate, bool echo, const char * project_name, const char * project_version, long timout);
+    void cmd_line_parse();
 
 public:
-    static bool version(int cookie, void * data);
-    static bool info(int cookie, void * data);
+    static int cmd_version(char** params, int param_count, void* data, int cookie);
+    static int cmd_info(char** params, int param_count, void* data, int cookie);
+    static int msg_info(char** params, int param_count, void* data);
 
 private:
 
-    void clear_cmd_line();
-    bool string2int(char * str, int &value);
-    bool string2uint(char * str, unsigned int &value);
+    void cmd_line_clear();
+
+    int cmd_line_exec(char type, char * name, int id, int cookie, char** params, int param_count);
+    int cmd_line_exec_msg(char * name, int id, char** params, int param_count);
+    int cmd_line_exec_cmd(char * name, int id, char** params, int param_count, int cookie);
+    int cmd_line_exec_resp(int cookie, char * error, char** params, int param_count);
+
+    int get_cookie();
+
+public:
+    const char * m_project_name;
+    const char * m_project_version = "x.x.x";
 
 private:
-
-    const char * m_name;
-    const char * m_version;
-
-    char m_cmd_line[HIM_CMD_LINE_LENGTH];
-    unsigned int  m_cmd_line_char_count;
-
-    int   m_state;
-    bool  m_echo;
-
-    char * m_arg_value[HIM_CMD_ARG_MAX];
-    unsigned int m_arg_count;
 
     struct {
-        const char * cmd;
-        const char * id;
-        const char * params;
-        const char * response;
-        const char * descr;
+        char char_line[HIM_CMD_LINE_LENGTH];
+        unsigned int  char_count;
+
+        bool echo;
+        long resp_timeout;
+        int  state;
+        bool flag_inquotes;
+
+        struct {
+            char type;
+            int cookie;
+            char * name;
+            int id;
+            char * param[HIM_CMD_LINE_PARAM_MAX];
+            unsigned int param_count;
+        } arg;
+    } m_interpreter;
+
+#if HIM_CMD_TABLE_MAX > 0
+    struct cmd_table_s{
+        const char * name;
+        int id;
         cmd_func_t func;
-        void*  data;
+        void * data;
+        const char * description_params; 
+        const char * description_general;  
+        const char * description_response;
     } m_cmd_table[HIM_CMD_TABLE_MAX];
     unsigned int m_cmd_count;
+#endif
 
-    struct {
-        const char * msg;
-        const char * id;
-        const char * response;
-        const char * descr;
+#if HIM_MSG_TABLE_MAX > 0
+    struct msg_table_s{
+        const char * name;
+        int id;
+        msg_func_t func;
+        void * data;
+        const char * description_params; 
+        const char * description_general;  
     } m_msg_table[HIM_MSG_TABLE_MAX];
     unsigned int m_msg_count;
+#endif
+
+#if HIM_RESP_TABLE_MAX > 0
+    struct resp_table_s{
+        long timestamp;
+        int cookie;
+        resp_func_t func;
+        void * data;
+    } m_resp_table[HIM_RESP_TABLE_MAX];
+#endif
+
 };
 
 extern HimCommand HimCmd;
-extern int cookie;
-extern int res;
 
-// public macro and function interface 
-#define him_cmd_init(baudrate)                      Serial.begin(baudrate)
-#ifndef him_serial_init
-#  define him_serial_init(baudrate)                 Serial.begin(baudrate)
-#endif
 
-void inline him_cmd_update()                                                { return HimCmd.update(); };
+// public macros and function interface 
+#define him_cmd_interpreter_init(baudrate,echo,name,version,timeout)    HimCmd.cmd_line_init(baudrate,echo,name,version,timeout)
+#define him_cmd_interpreter_parse()                                     HimCmd.cmd_line_parse()
 
-inline void him_cmd_set_echo(bool value)                                    { return HimCmd.set_echo(value); };
-inline void him_cmd_set_name(const char * name_string,
-                             const char * version_string)                   { return HimCmd.set_name(name_string, version_string); };
+#if HIM_CMD_COMPILE_NO_DESCRIPTION
+#define him_cmd_assign_msg(name, msg_func, data,  description_params, description_general)                         HimCmd.assign_msg(name, msg_func, data,  NULL, NULL)
+#define him_cmd_assign_cmd(name, cmd_func, data, description_params, description_general, description_response )   HimCmd.assign_cmd(name, cmd_func, data, NULL, NULL, NULL )
+#else
+#define him_cmd_assign_msg(name, msg_func, data, description_params, description_general)                          HimCmd.assign_msg(name, msg_func, data,  description_params, description_general)
+#define him_cmd_assign_cmd(name, cmd_func, data, description_params, description_general, description_response )   HimCmd.assign_cmd(name, cmd_func, data, description_params, description_general, description_response )
+#endif 
 
-inline int him_cmd_assign_cmd(  const char * cmd_string, 
-                                cmd_func_t func, void * data, 
-                                const char * params_string = NULL, 
-                                const char * response_string = NULL, 
-                                const char * description_string = NULL)     { return HimCmd.assign_cmd(cmd_string, func, data, params_string, response_string, description_string); };
-inline int him_cmd_assign_msg(  const char * msg_string, 
-                                const char * response_string = NULL, 
-                                const char * description_string = NULL)     { return HimCmd.assign_msg(msg_string, response_string, description_string); };
-
-#define him_cmd_response_cmd(   cookie, res, format, ...)                   HimCmd.response_cmd(cookie, res, format, ##__VA_ARGS__);
-#define him_cmd_response_msg(   msg, res, use_tag, format, ...)             HimCmd.response_msg(msg, res, use_tag, format, ##__VA_ARGS__);
-
-inline unsigned int him_cmd_getarg_count()                                  { return HimCmd.getarg_count(); };
-inline bool him_cmd_getarg_int(int index, int &value)                       { return HimCmd.getarg_int(index, value); };
-inline bool him_cmd_getarg_uint(int index, unsigned int &value)             { return HimCmd.getarg_uint(index, value); };
-inline bool him_cmd_getarg_char(int index, char &value, unsigned int pos)   { return HimCmd.getarg_char(index, value, pos); };
-inline bool him_cmd_getarg_string(int index, char * value, int &length)     { return HimCmd.getarg_string(index, value, length); };
-
+#define him_cmd_send_msg(cmd, param_format, ... )                       HimCmd.send_msg(cmd, param_format, __VA_ARGS__ )
+#define him_cmd_send_cmd(msg, msg_func, msg_data, param_format, ... )   HimCmd.send_cmd(msg, msg_func, msg_data, param_format, __VA_ARGS__ )
 
 #endif /* _HIM_CMD_H_ */
